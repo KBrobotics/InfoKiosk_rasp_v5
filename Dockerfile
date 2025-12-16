@@ -4,25 +4,28 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# build-arg z docker-compose
-ARG API_KEY
-ENV VITE_API_KEY=$API_KEY
+# Narzędzia do budowania zależności natywnych (częsty brak na alpine)
+RUN apk add --no-cache python3 make g++ libc6-compat
 
-# Kopiujemy package.json (+ ewentualne locki jeśli istnieją)
+ARG API_KEY
+ENV VITE_API_KEY=PoTJPuT1fKV-I7rvclv6HwlWFjnXZuhC5dK-q69du8TXoVOA9nLPw23yNTTyc3YunLWNYfY_11KP-zU4_DZ8JQ==
+
+# Kopiujemy manifesty i ewentualne locki
 COPY package.json ./
 COPY package-lock.json* ./
 COPY npm-shrinkwrap.json* ./
 
-# Instalujemy zależności:
-# - jeśli jest lock -> npm ci
-# - jeśli nie ma -> npm install
+# Instalacja:
+# 1) jeśli jest lock → spróbuj npm ci
+# 2) jeśli npm ci padnie (niespójny lock) → npm install
+# 3) jeśli nie ma lock → npm install
 RUN if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then \
-      npm ci; \
+      npm ci --no-audit --no-fund || npm install --no-audit --no-fund; \
     else \
-      npm install; \
+      npm install --no-audit --no-fund; \
     fi
 
-# Reszta kodu
+# Kod aplikacji
 COPY . .
 
 # Build produkcyjny
@@ -34,7 +37,7 @@ RUN npm run build
 # =========================
 FROM nginx:alpine
 
-# Konfiguracja pod SPA (żeby odświeżanie tras nie dawało 404)
+# Konfiguracja pod SPA (odświeżanie tras bez 404)
 RUN rm -f /etc/nginx/conf.d/default.conf && \
     printf "server {\n\
   listen 80;\n\
